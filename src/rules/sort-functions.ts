@@ -15,7 +15,6 @@ const sortFunctionsRule: TSESLint.RuleModule<'incorrectOrder', []> = {
         function collectDependencies(node: TSESTree.Node): Set<string> {
             const dependencies = new Set<string>();
             const visitedNodes = new Set<TSESTree.Node>();
-            const visitorKeys = context.sourceCode.visitorKeys || {};
 
             function visit(node: TSESTree.Node) {
                 if (!node || visitedNodes.has(node)) return;
@@ -25,20 +24,22 @@ const sortFunctionsRule: TSESLint.RuleModule<'incorrectOrder', []> = {
                     dependencies.add(node.name);
                 }
 
-                const keys = visitorKeys[node.type] || [];
-                for (const key of keys) {
-                    const child = (node as any)[key];
+                Object.keys(node).forEach((key) => {
+                    if (key === 'type' || key === 'loc' || key === 'range' || key === 'parent') return;
 
-                    if (Array.isArray(child)) {
-                        for (const c of child) {
-                            if (c && typeof c.type === 'string') {
-                                visit(c);
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    const childOrChildren = (node as any)[key];
+
+                    if (Array.isArray(childOrChildren)) {
+                        childOrChildren.forEach((child) => {
+                            if (child && typeof child.type === 'string') {
+                                visit(child as TSESTree.Node);
                             }
-                        }
-                    } else if (child && typeof child.type === 'string') {
-                        visit(child);
+                        });
+                    } else if (childOrChildren && typeof childOrChildren.type === 'string') {
+                        visit(childOrChildren as TSESTree.Node);
                     }
-                }
+                });
             }
 
             visit(node);
@@ -69,25 +70,38 @@ const sortFunctionsRule: TSESLint.RuleModule<'incorrectOrder', []> = {
                 }
             },
             'Program:exit'() {
-                const { sourceCode } = context;
+                // @ts-expect-error Deprecated
+                const sourceCode = context.sourceCode;
 
                 // Collect functionInfos with their dependencies and original index
-                sourceCode.ast.body.forEach((node, index) => {
-                    if (
-                        node.type === 'ExportNamedDeclaration' &&
-                        node.declaration &&
-                        (node.declaration.type === 'FunctionDeclaration' ||
-                            (node.declaration.type === 'VariableDeclaration' &&
-                                node.declaration.declarations[0]?.init &&
-                                (node.declaration.declarations[0].init.type === 'ArrowFunctionExpression' ||
-                                    node.declaration.declarations[0].init.type === 'FunctionExpression')))
-                    ) {
-                        const functionName = node.declaration.id
-                            ? (node.declaration.id as TSESTree.Identifier).name
-                            : (node.declaration.declarations[0]?.id as TSESTree.Identifier).name;
+                sourceCode.ast.body.forEach((node: TSESTree.Statement, index: number) => {
+                    if (node.type === 'ExportNamedDeclaration' && node.declaration) {
+                        let functionName: null | string = null;
+                        let funcNode: null | TSESTree.Node = null;
 
-                        if (functionName) {
-                            const dependencies = collectDependencies(node.declaration);
+                        if (node.declaration.type === 'FunctionDeclaration') {
+                            const funcDecl = node.declaration as TSESTree.FunctionDeclaration;
+                            if (funcDecl.id && funcDecl.id.type === 'Identifier') {
+                                functionName = funcDecl.id.name;
+                                funcNode = funcDecl;
+                            }
+                        } else if (node.declaration.type === 'VariableDeclaration') {
+                            const varDecl = node.declaration as TSESTree.VariableDeclaration;
+                            const declarator = varDecl.declarations[0];
+                            if (declarator && declarator.id.type === 'Identifier') {
+                                const init = declarator.init;
+                                if (
+                                    init &&
+                                    (init.type === 'ArrowFunctionExpression' || init.type === 'FunctionExpression')
+                                ) {
+                                    functionName = declarator.id.name;
+                                    funcNode = declarator;
+                                }
+                            }
+                        }
+
+                        if (functionName && funcNode) {
+                            const dependencies = collectDependencies(funcNode);
                             functionInfos.push({ dependencies, functionName, index, node });
                         }
                     }
@@ -139,21 +153,22 @@ const sortFunctionsRule: TSESLint.RuleModule<'incorrectOrder', []> = {
                             data: {
                                 name: actualFunc.functionName,
                             },
-                            fix: () => null, // Auto-fixing might not be safe
                             messageId: 'incorrectOrder',
                             node: actualFunc.node,
+                            // Since auto-fixing might not be safe due to dependencies, we don't provide a fixer
                         });
                     }
                 }
             },
         };
     },
+
+    defaultOptions: [],
     meta: {
         docs: {
             description: 'Sort exported function declarations alphabetically while respecting dependencies',
             recommended: false,
         },
-        fixable: null, // Auto-fixing may not be safe
         messages: {
             incorrectOrder: 'Function "{{ name }}" is declared in the wrong order.',
         },
