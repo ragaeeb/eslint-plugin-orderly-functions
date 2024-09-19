@@ -9,12 +9,16 @@ You'll first need to install [ESLint](https://eslint.org/):
 ```bash
 npm install eslint --save-dev
 # or
+yarn add -D eslint
+# or
 pnpm i -D eslint
 
 ```
 
 ```bash
 npm install -D eslint-plugin-orderly-functions
+# or
+yarn add -D eslint-plugin-orderly-functions
 # or
 pnpm i -D eslint-plugin-orderly-functions
 ```
