@@ -1,7 +1,7 @@
 {
     "name": "eslint-plugin-orderly-functions",
     "description": "An ESLint plugin to sort exported function declarations alphabetically while respecting dependencies.",
-    "version": "1.0.0",
+    "version": "0.0.1",
     "author": "Ragaeeb Haq",
     "license": "MIT",
     "private": false,
