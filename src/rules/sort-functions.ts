@@ -7,12 +7,15 @@ interface FunctionInfo {
     node: TSESTree.Node;
 }
 
-const sortFunctionsRule: TSESLint.RuleModule<'incorrectOrder', []> = {
+const sortFunctionsRule: TSESLint.RuleModule<'incorrectOrder', [{ enableFixer?: boolean }]> = {
     create(context) {
         const functionInfos: FunctionInfo[] = [];
         const exportedFunctionNames = new Set<string>();
 
-        function collectDependencies(node: TSESTree.Node): Set<string> {
+        const options = context.options[0] || {};
+        const enableFixer = options.enableFixer === true;
+
+        const collectDependencies = (node: TSESTree.Node): Set<string> => {
             const dependencies = new Set<string>();
             const visitedNodes = new Set<TSESTree.Node>();
 
@@ -44,7 +47,7 @@ const sortFunctionsRule: TSESLint.RuleModule<'incorrectOrder', []> = {
 
             visit(node);
             return dependencies;
-        }
+        };
 
         return {
             ExportNamedDeclaration(node) {
@@ -60,7 +63,13 @@ const sortFunctionsRule: TSESLint.RuleModule<'incorrectOrder', []> = {
                         const varDecl = node.declaration as TSESTree.VariableDeclaration;
                         const declarator = varDecl.declarations[0];
                         if (declarator && declarator.id.type === 'Identifier') {
-                            functionName = declarator.id.name;
+                            const init = declarator.init;
+                            if (
+                                init &&
+                                (init.type === 'ArrowFunctionExpression' || init.type === 'FunctionExpression')
+                            ) {
+                                functionName = declarator.id.name;
+                            }
                         }
                     }
 
@@ -70,8 +79,7 @@ const sortFunctionsRule: TSESLint.RuleModule<'incorrectOrder', []> = {
                 }
             },
             'Program:exit'() {
-                // @ts-expect-error Deprecated
-                const sourceCode = context.sourceCode;
+                const sourceCode = context.getSourceCode();
 
                 // Collect functionInfos with their dependencies and original index
                 sourceCode.ast.body.forEach((node: TSESTree.Statement, index: number) => {
@@ -83,7 +91,7 @@ const sortFunctionsRule: TSESLint.RuleModule<'incorrectOrder', []> = {
                             const funcDecl = node.declaration as TSESTree.FunctionDeclaration;
                             if (funcDecl.id && funcDecl.id.type === 'Identifier') {
                                 functionName = funcDecl.id.name;
-                                funcNode = funcDecl;
+                                funcNode = node;
                             }
                         } else if (node.declaration.type === 'VariableDeclaration') {
                             const varDecl = node.declaration as TSESTree.VariableDeclaration;
@@ -95,14 +103,14 @@ const sortFunctionsRule: TSESLint.RuleModule<'incorrectOrder', []> = {
                                     (init.type === 'ArrowFunctionExpression' || init.type === 'FunctionExpression')
                                 ) {
                                     functionName = declarator.id.name;
-                                    funcNode = declarator;
+                                    funcNode = node;
                                 }
                             }
                         }
 
                         if (functionName && funcNode) {
                             const dependencies = collectDependencies(funcNode);
-                            functionInfos.push({ dependencies, functionName, index, node });
+                            functionInfos.push({ dependencies, functionName, index, node: funcNode });
                         }
                     }
                 });
@@ -153,26 +161,112 @@ const sortFunctionsRule: TSESLint.RuleModule<'incorrectOrder', []> = {
                             data: {
                                 name: actualFunc.functionName,
                             },
+                            fix: enableFixer
+                                ? (fixer) => {
+                                      const sourceCode = context.getSourceCode();
+
+                                      // Collect the functions along with their full text including comments and whitespace
+                                      const functionsWithText = functionInfos.map((info, index) => {
+                                          // Determine the start index
+                                          let start = info.node.range[0];
+
+                                          // Include leading comments and whitespace
+                                          const leadingComments = sourceCode.getCommentsBefore(info.node);
+                                          if (leadingComments.length > 0) {
+                                              start = leadingComments[0].range[0];
+                                          } else {
+                                              const tokenBefore = sourceCode.getTokenBefore(info.node, {
+                                                  includeComments: true,
+                                              });
+                                              if (tokenBefore) {
+                                                  start = tokenBefore.range[1];
+                                              } else {
+                                                  start = 0;
+                                              }
+                                          }
+
+                                          // Determine the end index
+                                          let end: number;
+
+                                          // If there is a next function
+                                          if (index + 1 < functionInfos.length) {
+                                              const nextInfo = functionInfos[index + 1];
+
+                                              // Include any whitespace and comments between functions
+                                              end = nextInfo.node.range[0];
+                                          } else {
+                                              // Last function: include everything up to the end of the file
+                                              end = sourceCode.text.length;
+                                          }
+
+                                          const functionText = sourceCode.text.slice(start, end);
+
+                                          return {
+                                              functionName: info.functionName,
+                                              range: [start, end] as [number, number],
+                                              text: functionText,
+                                          };
+                                      });
+
+                                      // Build a map of functionName to functionText and range
+                                      const functionTextsMap = new Map<
+                                          string,
+                                          { range: [number, number]; text: string }
+                                      >();
+                                      for (const func of functionsWithText) {
+                                          functionTextsMap.set(func.functionName, {
+                                              range: func.range,
+                                              text: func.text,
+                                          });
+                                      }
+
+                                      // Now, collect the sorted functions' texts
+                                      const sortedFunctionTexts = sortedFunctions.map(
+                                          (info) => functionTextsMap.get(info.functionName)!,
+                                      );
+
+                                      // Determine the range to replace
+                                      const replaceRange: [number, number] = [
+                                          functionsWithText[0].range[0],
+                                          functionsWithText[functionsWithText.length - 1].range[1],
+                                      ];
+
+                                      // Build the new code
+                                      const newCode = sortedFunctionTexts.map((func) => func.text).join('');
+
+                                      return fixer.replaceTextRange(replaceRange, newCode);
+                                  }
+                                : null,
                             messageId: 'incorrectOrder',
                             node: actualFunc.node,
-                            // Since auto-fixing might not be safe due to dependencies, we don't provide a fixer
                         });
                     }
                 }
             },
         };
     },
-
-    defaultOptions: [],
+    defaultOptions: [{ enableFixer: false }],
     meta: {
         docs: {
             description: 'Sort exported function declarations alphabetically while respecting dependencies',
             recommended: false,
         },
+        fixable: 'code',
         messages: {
             incorrectOrder: 'Function "{{ name }}" is declared in the wrong order.',
         },
-        schema: [], // No options for this rule
+        schema: [
+            {
+                additionalProperties: false,
+                properties: {
+                    enableFixer: {
+                        default: false,
+                        type: 'boolean',
+                    },
+                },
+                type: 'object',
+            },
+        ],
         type: 'suggestion',
     },
 };

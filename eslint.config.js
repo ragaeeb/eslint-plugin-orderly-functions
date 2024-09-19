@@ -30,8 +30,6 @@ export default [
             ...eslint.configs.recommended.rules,
             ...tseslint.configs.recommended.rules,
             ...eslintConfigPrettier.rules,
-            'no-console': 'off',
-            'no-plusplus': 'off',
             'prettier/prettier': ['error'],
             radix: 'off',
         },

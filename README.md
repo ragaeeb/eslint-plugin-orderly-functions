@@ -25,14 +25,56 @@ pnpm i -D eslint-plugin-orderly-functions
 
 ## Usage
 
-Add orderly-functions to the plugins section of your ESLint configuration file (e.g., .eslintrc.js):
+In your ESLint configuration file (`.eslintrc.js` or `eslint.config.js` for ESLint v9+), add the plugin and configure the rule.
+
+```javascript
+// eslint.config.js for ESLint v9+ (flat config)
+import orderlyFunctions from 'eslint-plugin-orderly-functions';
+
+export default [
+    {
+        plugins: {
+            'orderly-functions': orderlyFunctions,
+        },
+        rules: {
+            'orderly-functions/sort-functions': 'error',
+        },
+    },
+];
+```
+
+### Enabling the Autofixer:
+
+```javascript
+// eslint.config.js
+import orderlyFunctions from 'eslint-plugin-orderly-functions';
+
+export default [
+    {
+        plugins: {
+            'orderly-functions': orderlyFunctions,
+        },
+        rules: {
+            'orderly-functions/sort-functions': [
+                'error',
+                {
+                    enableFixer: true,
+                },
+            ],
+        },
+    },
+];
+```
+
+Note: Enabling the autofixer will reorder your exported functions according to the rule. Use it with caution and ensure you have proper version control and testing in place.
 
 ## Rule Details
 
-This plugin provides the following rule:
+This rule enforces that exported functions are sorted alphabetically while respecting their dependencies.
 
-sort-functions
-This rule enforces that exported function declarations are sorted alphabetically while respecting their dependencies. If a function depends on another, it should be declared after its dependencies, even if it would come earlier alphabetically.
+### Options
+
+-   `enableFixer` (boolean, default: `false`): Enables the autofixer to automatically reorder functions.
 
 Examples of incorrect code:
 

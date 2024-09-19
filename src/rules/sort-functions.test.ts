@@ -30,6 +30,107 @@ ruleTester.run('sort-functions', rule, {
                 { message: 'Function "a" is declared in the wrong order.' },
                 { message: 'Function "b" is declared in the wrong order.' },
             ],
+            name: 'Multiple dependencies with fixer',
+            options: [{ enableFixer: true }],
+            output: `
+          export const a = (): string => {
+            return 'a';
+          };
+          
+          export const b = (): string => {
+            return 'b';
+          };
+        
+          export const c = (): string => {
+            return a() + b();
+          };
+          `,
+        },
+
+        {
+            code: `
+            export const b = (): string => 'b';
+            export const a = (): string => 'a';
+          `,
+            errors: [
+                { message: 'Function "b" is declared in the wrong order.' },
+                { message: 'Function "a" is declared in the wrong order.' },
+            ],
+            name: 'Functions out of alphabetical order with fixer',
+            options: [{ enableFixer: true }],
+            output: `
+            export const a = (): string => 'a';
+          
+            export const b = (): string => 'b';
+            `,
+        },
+        {
+            code: `
+            export function c() {
+              return 'c';
+            }
+            export const a = function () {
+              return 'a';
+            };
+            export const b = (): string => 'b';
+          `,
+            errors: [
+                { message: 'Function "c" is declared in the wrong order.' },
+                { message: 'Function "a" is declared in the wrong order.' },
+                { message: 'Function "b" is declared in the wrong order.' },
+            ],
+            name: 'Function expressions should be sorted alphabetically with fixer',
+            options: [{ enableFixer: true }],
+            output: `
+            export const a = function () {
+              return 'a';
+            };
+            
+            export const b = (): string => 'b';
+          
+            export function c() {
+              return 'c';
+            }
+            `,
+        },
+        {
+            code: `
+            export const b = (): string => 'b';
+    
+            /* This is a comment */
+            export const a = (): string => 'a';
+          `,
+            errors: [
+                { message: 'Function "b" is declared in the wrong order.' },
+                { message: 'Function "a" is declared in the wrong order.' },
+            ],
+            name: 'Comments should not affect function sorting with fixer',
+            options: [{ enableFixer: true }],
+            output: `/* This is a comment */
+            export const a = (): string => 'a';
+          
+            export const b = (): string => 'b';
+    
+            /* This is a comment */
+            `,
+        },
+        {
+            code: `
+          export const c = (): string => {
+            return a() + b();
+          };
+          export const a = (): string => {
+            return 'a';
+          };
+          export const b = (): string => {
+            return 'b';
+          };
+        `,
+            errors: [
+                { message: 'Function "c" is declared in the wrong order.' },
+                { message: 'Function "a" is declared in the wrong order.' },
+                { message: 'Function "b" is declared in the wrong order.' },
+            ],
             name: 'Multiple dependencies',
         },
         {
