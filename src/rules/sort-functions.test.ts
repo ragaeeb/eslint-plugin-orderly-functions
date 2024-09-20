@@ -224,16 +224,16 @@ ruleTester.run('sort-functions', rule, {
         },
         {
             code: `
-            export function a() {
-              return b();
-            }
             export function b() {
               return a();
             }
+            export function a() {
+              return b();
+            }
           `,
             errors: [
-                { message: 'Function "a" is declared in the wrong order.' },
                 { message: 'Function "b" is declared in the wrong order.' },
+                { message: 'Function "a" is declared in the wrong order.' },
             ],
             name: 'Circular dependency between functions',
         },
