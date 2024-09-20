@@ -1,6 +1,6 @@
 import { TSESLint } from '@typescript-eslint/utils';
 
-import { FunctionInfo } from '../types.js';
+import { FunctionInfo, FunctionText } from '../types.js';
 
 interface FunctionWithText {
     functionName: string;
@@ -49,4 +49,36 @@ export const getFunctionsWithText = (
             text: functionText,
         };
     });
+};
+
+export const fixFunctions = (
+    fixer: TSESLint.RuleFixer,
+    functionInfos: FunctionInfo[],
+    sourceCode: TSESLint.SourceCode,
+    sortedFunctions: FunctionInfo[],
+) => {
+    const functionsWithText = getFunctionsWithText(functionInfos, sourceCode);
+
+    // Map function names to their texts
+    const functionTextsMap = new Map<string, FunctionText>();
+    for (const func of functionsWithText) {
+        functionTextsMap.set(func.functionName, {
+            range: func.range,
+            text: func.text,
+        });
+    }
+
+    // Collect the sorted functions' texts
+    const sortedFunctionTexts = sortedFunctions.map((info) => functionTextsMap.get(info.functionName)!);
+
+    // Determine the range to replace
+    const replaceRange: [number, number] = [
+        functionsWithText[0].range[0],
+        functionsWithText[functionsWithText.length - 1].range[1],
+    ];
+
+    // Build the new code
+    const newCode = sortedFunctionTexts.map((func) => func.text).join('');
+
+    return fixer.replaceTextRange(replaceRange, newCode);
 };

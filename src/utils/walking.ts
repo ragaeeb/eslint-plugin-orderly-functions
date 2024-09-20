@@ -1,4 +1,6 @@
-import { TSESTree } from '@typescript-eslint/utils';
+import { TSESLint, TSESTree } from '@typescript-eslint/utils';
+
+import { FunctionInfo } from '../types.js';
 
 export const collectDependencies = (node: TSESTree.Node, exportedFunctionNames: Set<string>): Set<string> => {
     const dependencies = new Set<string>();
@@ -50,4 +52,25 @@ export const getExportedFunctionName = (node: TSESTree.ExportNamedDeclaration): 
         }
     }
     return null;
+};
+
+export const mapSourceCodeToFunctionInfos = (
+    sourceCode: TSESLint.SourceCode,
+    exportedFunctionNames: Set<string>,
+): FunctionInfo[] => {
+    const result: FunctionInfo[] = [];
+
+    sourceCode.ast.body.forEach((node, index) => {
+        if (node.type === 'ExportNamedDeclaration') {
+            const functionName = getExportedFunctionName(node);
+
+            if (functionName) {
+                const funcNode = node;
+                const dependencies = collectDependencies(funcNode, exportedFunctionNames);
+                result.push({ dependencies, functionName, index, node: funcNode });
+            }
+        }
+    });
+
+    return result;
 };
