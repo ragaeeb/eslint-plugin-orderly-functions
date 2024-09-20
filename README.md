@@ -95,3 +95,44 @@ export const c = () => {
     return a() + b();
 };
 ```
+
+## Performance Complexity Analysis
+
+### Time Complexity:
+
+`collectDependencies` Function:
+
+Per Function: O(N), where N is the number of nodes in the function's AST.
+Overall: O(F \* N), where F is the number of exported functions.
+topologicalSortFunctions Function:
+
+DFS Traversal: O(F + E), where F is the number of functions and E is the number of edges (dependencies).
+Sorting Function Names: O(F log F) due to the alphabetical sorting.
+Combined Complexity:
+
+### Total Time Complexity:
+
+O(F _ N) for dependency collection.
+O(F log F + F + E) for topological sort.
+Assuming E is O(F²) in the worst case (every function depends on every other function), the total time complexity could be O(F _ N + F²).
+
+### Space Complexity:
+
+`collectDependencies` Function:
+
+O(N) for the call stack and visited nodes per function.
+topologicalSortFunctions Function:
+
+O(F) for the sortedFunctions, visited, and ancestors sets.
+
+## Potential Performance Issues on Large Source Files
+
+### Scalability Concerns:
+
+Large Number of Functions:
+
+If a file contains a large number of exported functions (hundreds or thousands), the time complexity could become significant.
+The dependency graph could be complex, especially if many functions depend on each other.
+Deeply Nested ASTs:
+
+Functions with large and complex bodies may increase the time spent in collectDependencies.
